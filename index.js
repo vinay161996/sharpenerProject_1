@@ -1,9 +1,35 @@
 const form = document.querySelector(".expenseForm");
 const localStorageKey = "expenseDetail";
+const ul = document.querySelector("#items");
+const baseurl =
+  "https://crudcrud.com/api/d523ed85a61243e3bdb1ce312aa838de/appointment";
 
 form.addEventListener("submit", handleFormSubmit);
 
-function handleFormSubmit(e) {
+window.onload = () => {
+  showData();
+};
+
+function showData() {
+  axios(baseurl)
+    .then((res) => {
+      const data = res.data;
+      if (!data || !data.length) return;
+
+      data.forEach((item) => {
+        const newLi = makeli(
+          item.expenseAmount,
+          item.description,
+          item.category
+        );
+        newLi.id = item._id;
+        ul.appendChild(newLi);
+      });
+    })
+    .catch((err) => console.log(err));
+}
+
+async function handleFormSubmit(e) {
   e.preventDefault();
   const data = e.target;
   let expenseAmount = data.expenseAmount.value;
@@ -11,38 +37,30 @@ function handleFormSubmit(e) {
   let category = data.category.value;
   if (category == "Category") return;
 
-  const ul = document.querySelector("#items");
+  const newLiId = await putDataInServer(expenseAmount, description, category);
 
-  const newLi = makeli(expenseAmount, description, category);
+  const newLi = makeli(expenseAmount, description, category, newLiId);
   ul.appendChild(newLi);
-
-  setDataInLocalstorage(expenseAmount, description, category);
 
   data.expenseAmount.value = "";
   data.description.value = "";
   data.category.value = "Category";
 }
-
-function setDataInLocalstorage(expenseAmount, description, category) {
+function putDataInServer(expenseAmount, description, category) {
   const obj = {
     expenseAmount,
     description,
     category,
   };
-  const dataAvailable = localStorage.getItem(localStorageKey);
-  if (!dataAvailable) {
-    const objSimplified = JSON.stringify([obj]);
-    localStorage.setItem(localStorageKey, objSimplified);
-    return;
-  }
-
-  const getData = JSON.parse(dataAvailable);
-  const newData = [...getData, obj];
-  const newDataSimplified = JSON.stringify(newData);
-  localStorage.setItem(localStorageKey, newDataSimplified);
+  return new Promise((resolve, reject) => {
+    axios
+      .post(baseurl, obj)
+      .then((res) => resolve(res.data._id))
+      .catch((err) => console.log(err));
+  });
 }
 
-function makeli(expenseAmount, description, category) {
+function makeli(expenseAmount, description, category, newId) {
   const paraText = `${expenseAmount} - ${description} - ${category}`;
   const li = makeElement("li", ["list-group-item"]);
   const outerDiv = makeElement("div", ["row"]);
@@ -71,6 +89,7 @@ function makeli(expenseAmount, description, category) {
   outerDiv.appendChild(innerDivForBtn);
 
   li.appendChild(outerDiv);
+  li.id = newId;
   return li;
 }
 function makeElement(ele, arr, text = "") {
@@ -93,19 +112,14 @@ function handleRemoveEdit(e) {
 
   const textArr = el.querySelector(".listItem").textContent.split(" - ");
   if (isEdit) {
-    console.log(textArr);
     form.expenseAmount.value = textArr[0];
     form.description.value = textArr[1];
     form.category.value = textArr[2];
   }
-  removeDataFromLocalStorage(textArr[1]);
+  const elId = el.id;
+  axios
+    .delete(baseurl + "/" + elId)
+    .then((res) => console.log(res))
+    .catch((err) => console.log(err));
   el.remove();
-}
-function removeDataFromLocalStorage(description) {
-  const data = JSON.parse(localStorage.getItem(localStorageKey));
-  const newData = data.filter((item) => {
-    return item.description !== description;
-  });
-  const newDataSimplified = JSON.stringify(newData);
-  localStorage.setItem(localStorageKey, newDataSimplified);
 }
